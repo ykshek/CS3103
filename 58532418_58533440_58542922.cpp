@@ -3,6 +3,9 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include "generate_frame_vector.c"
+#include "compression.c"
+#include <cstring>
 
 using namespace std;
 
@@ -19,8 +22,8 @@ struct Queue {
     QueueEntry queue[CACHE_SIZE];
     int front, rear, count;
 
-    bool full() const return count == CACHE_SIZE;
-    bool empty() const return count == 0;
+    bool full() {return count == CACHE_SIZE;}
+    bool empty() {return count == 0;}
 
     bool enqueue(double* frame) {
         if (full()) return false;
@@ -32,7 +35,7 @@ struct Queue {
     }
     double* dequeue() {
         if (empty()) return NULL;
-        id = front;
+        // id = front;
         double* output = queue[front].original_frame;
         front = (front + 1) % CACHE_SIZE;
         count--;
@@ -53,6 +56,7 @@ sem_t cache_emptied;
 sem_t cache_loaded; // ready for transformer
 sem_t transformer_loaded; // ready for MSE
 sem_t mse_loaded; // ready for camera
+double temp[FRAME_LEN]; // "temporary frame recorder"
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -65,11 +69,12 @@ double calculate_mse(const double* a, const double* b, int len) {
 }
 
 
-void* camera(void *INTERVAL_SECONDS) {
+void* camera(void* arg) {
+    int INTERVAL_SECONDS = (int)(intptr_t)arg;
     int done = 0;
     while(!done) {
-        double frame = generate_frame_vector(FRAME_LEN);
-        if (frame == NULL) break;
+        double* frame = generate_frame_vector(FRAME_LEN);
+        if (!frame) break;
         // ^^ "After a certain number of frames are generated, the function generate_frame_vector() returns NULL and the camera exits."
         if (frame_cache.full()) sem_wait(&cache_emptied);
         // ^^ "When the cache is full, the camera has to wait for the signal from the estimator after it deletes a frame from the cache."
@@ -81,7 +86,7 @@ void* camera(void *INTERVAL_SECONDS) {
 
         sem_post(&cache_loaded);
     }
-    return null;
+    return NULL;
 }
 
 void* transformer(void* arg) {
@@ -102,7 +107,7 @@ void* transformer(void* arg) {
         sem_post(&transformer_loaded);
         // ^^ "Signals the estimator to computer the MSE."
     }
-    return null;
+    return NULL;
 }
 
 void* estimator(void* arg) {
@@ -123,10 +128,17 @@ void* estimator(void* arg) {
         pthread_mutex_unlock(&mutex);
         sem_post(&cache_emptied);
     }
-    return null;
+    return NULL;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+
+    if (argc != 2) {
+        printf("Invalid number of arguments.");
+        return 0;
+    }
+    int INTERVAL_SECONDS = *argv[1] - '0';
+
     sem_init(&cache_loaded, 0, 0);
     sem_init(&cache_emptied, 0, CACHE_SIZE);
     sem_init(&transformer_loaded, 0, 0);
@@ -134,13 +146,13 @@ int main() {
 
     pthread_t camera_thread, transformer_thread, estimator_thread;
 
-    pthread_create(&camera_thread, null, camera, null);
-    pthread_create(&transformer_thread, null, transformer, null);
-    pthread_create(&estimator_thread, null, estimator, null);
+    pthread_create(&camera_thread, NULL, camera, (void *)(intptr_t)INTERVAL_SECONDS);
+    pthread_create(&transformer_thread, NULL, transformer, NULL);
+    pthread_create(&estimator_thread, NULL, estimator, NULL);
 
-    pthread_join(camera_thread, null);
-    pthread_join(transformer_thread, null);
-    pthread_join(estimator_thread, null);
+    pthread_join(camera_thread, NULL);
+    pthread_join(transformer_thread, NULL);
+    pthread_join(estimator_thread, NULL);
 
     sem_destroy(&cache_loaded);
     sem_destroy(&cache_emptied);
