@@ -10,6 +10,43 @@ using namespace std;
 #define CACHE_SIZE 5
 #define FRAME_LEN 8
 
+struct QueueEntry {
+    double* original_frame;
+    double* compressed_frame;
+};
+
+struct Queue {
+    QueueEntry queue[CACHE_SIZE];
+    int front, rear, count;
+
+    bool full() const return count == CACHE_SIZE;
+    bool empty() const return count == 0;
+
+    bool enqueue(double* frame) {
+        if (full()) return false;
+        queue[rear].original_frame = frame;
+        queue[rear].compressed_frame = NULL;
+        rear = (rear + 1) % CACHE_SIZE;
+        count++;
+        return true;
+    }
+    double* dequeue() {
+        if (empty()) return NULL;
+        id = front;
+        double* output = queue[front].original_frame;
+        front = (front + 1) % CACHE_SIZE;
+        count--;
+        return output;
+    }
+    double* get_noDequeue() {
+        if (empty()) return NULL;
+        return queue[front].original_frame;
+    }
+    double* set_compressed(double* compressed) {
+        if (!empty()) queue[front].compressed_frame = compressed;
+    }
+};
+
 Queue frame_cache;
 
 sem_t cache_emptied;
@@ -18,6 +55,15 @@ sem_t transformer_loaded; // ready for MSE
 sem_t mse_loaded; // ready for camera
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+double calculate_mse(const double* a, const double* b, int len) {
+    double mse = 0.0;
+    for (int i = 0; i < len; ++i)
+        mse += (a[i] - b[i]) * (a[i] - b[i]);
+    mse /= len;
+    return mse;
+}
+
 
 void* camera(void *INTERVAL_SECONDS) {
     int done = 0;
@@ -108,59 +154,5 @@ int main() {
 
 
 
-
-
-
-
-
-
-
-
-//=================Other Functions=================
-
-double calculate_mse(const double* a, const double* b, int len) {
-    double mse = 0.0;
-    for (int i = 0; i < len; ++i)
-        mse += (a[i] - b[i]) * (a[i] - b[i]);
-    mse /= len;
-    return mse;
-}
-
-struct QueueEntry {
-    double* original_frame;
-    double* compressed_frame;
-};
-
-struct Queue {
-    QueueEntry queue[CACHE_SIZE];
-    int front, rear, count;
-
-    bool full() const return count == CACHE_SIZE;
-    bool empty() const return count == 0;
-
-    bool enqueue(double* frame) {
-        if (full()) return false;
-        queue[rear].original_frame = frame;
-        queue[rear].compressed_frame = NULL;
-        rear = (rear + 1) % CACHE_SIZE;
-        count++;
-        return true;
-    }
-    double* dequeue() {
-        if (empty()) return NULL;
-        id = front;
-        double* output = queue[front].original_frame;
-        front = (front + 1) % CACHE_SIZE;
-        count--;
-        return output;
-    }
-    double* get_noDequeue() {
-        if (empty()) return NULL;
-        return queue[front].original_frame;
-    }
-    double* set_compressed(double* compressed) {
-        if (!empty()) queue[front].compressed_frame = compressed;
-    }
-};
 
 
