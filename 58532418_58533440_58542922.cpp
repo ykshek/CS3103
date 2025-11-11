@@ -3,8 +3,6 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include "generate_frame_vector.c"
-#include "compression.c"
 #include <cstring>
 
 using namespace std;
@@ -12,6 +10,11 @@ using namespace std;
 // given in document: FIFO buffer size = 5, generate_frame_vector(l), where l = 8
 #define CACHE_SIZE 5
 #define FRAME_LEN 8
+#define DEFAULT_FRAMES 10
+
+// Prototype function declarations
+double* generate_frame_vector(int length);
+double* compression(double* frame, int length);
 
 struct QueueEntry {
     double* original_frame;
@@ -47,6 +50,7 @@ struct Queue {
     }
     double* set_compressed(double* compressed) {
         if (!empty()) queue[front].compressed_frame = compressed;
+        return NULL;
     }
 };
 
@@ -122,7 +126,7 @@ void* estimator(void* arg) {
         double* compressed = temp;
         // ^^ "...between the compressed frame in the temporary frame recorder and the corresponding original frame in the cache."
         double mse = calculate_mse(original, compressed, FRAME_LEN);
-        printf("MSE: %f\n", mse);
+        printf("mse: %f\n", mse);
 
         frame_cache.dequeue();
         pthread_mutex_unlock(&mutex);
@@ -133,11 +137,15 @@ void* estimator(void* arg) {
 
 int main(int argc, char *argv[]) {
 
-    if (argc != 2) {
+    int i, rc, FRAMES;
+    if (argc < 2 || argc > 3) {
         printf("Invalid number of arguments.");
         return 0;
     }
-    int INTERVAL_SECONDS = *argv[1] - '0';
+    if (argc == 3) FRAMES = atoi(argv[2]);
+    else FRAMES = DEFAULT_FRAMES;
+
+    int INTERVAL_SECONDS = atoi(argv[1]);
 
     sem_init(&cache_loaded, 0, 0);
     sem_init(&cache_emptied, 0, CACHE_SIZE);
@@ -146,13 +154,36 @@ int main(int argc, char *argv[]) {
 
     pthread_t camera_thread, transformer_thread, estimator_thread;
 
-    pthread_create(&camera_thread, NULL, camera, (void *)(intptr_t)INTERVAL_SECONDS);
-    pthread_create(&transformer_thread, NULL, transformer, NULL);
-    pthread_create(&estimator_thread, NULL, estimator, NULL);
+    for (i = 0; i < FRAMES; i++) {
+        struct thread_args *x = (struct thread_args *)malloc(sizeof(struct thread_args));
+        x->interval = INTERVAL_SECONDS;
+        x->threadID = i;
+        x->frames = FRAMES;
+        rc = pthread_create(&camera_thread, NULL, camera, (void *)x);
+        if (rc) {
+            cout << "Error when creating threads!" << endl;
+            exit(-1);
+        }
+    }
 
-    pthread_join(camera_thread, NULL);
-    pthread_join(transformer_thread, NULL);
-    pthread_join(estimator_thread, NULL);
+    rc = pthread_create(&transformer_thread, NULL, transformer, NULL);
+    if (rc) {
+        cout << "Error when creating threads!" << endl;
+        exit(-1);
+    }
+
+    rc = pthread_create(&estimator_thread, NULL, estimator, NULL);
+    if (rc) {
+        cout << "Error when creating threads!" << endl;
+        exit(-1);
+    }
+
+    for (i = 0; i < FRAMES; i++) {
+        pthread_join(camera_thread, NULL);
+        pthread_join(transformer_thread, NULL);
+        pthread_join(estimator_thread, NULL);
+    }
+
 
     sem_destroy(&cache_loaded);
     sem_destroy(&cache_emptied);

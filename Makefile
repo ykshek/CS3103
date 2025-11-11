@@ -5,5 +5,5 @@ all: $(ALL)
 clean: rm -f $(ALL) *~
 
 58532418_58533440_58542922: 58532418_58533440_58542922.cpp
-	gcc generate_frame_vector.c compression.c 58532418_58533440_58542922.cpp -lpthread -o 58532418_58533440_58542922
+	g++ generate_frame_vector.c compression.c 58532418_58533440_58542922.cpp -lpthread -lm -o 58532418_58533440_58542922
 
