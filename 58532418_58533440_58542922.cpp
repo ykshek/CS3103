@@ -18,7 +18,7 @@ using namespace std;
 double* generate_frame_vector(int length);
 double* compression(double* frame, int length);
 
-//===================Michael-Scott Non-blocking Queue===================
+//Modify to Michael-Scott Non-blocking Queue
 struct Node {
     double* frame;
     atomic<Node*> next;
@@ -37,7 +37,6 @@ struct MSQueue {
     }
     
     ~MSQueue() {
-        // Cleanup remaining nodes
         while (dequeue() != nullptr) {}
         Node* dummy = head.load();
         if (dummy) delete dummy;
@@ -103,8 +102,6 @@ struct MSQueue {
     }
     
     bool full() {
-        // For simplicity, we don't limit size in the lock-free queue
-        // The semaphore cache_emptied will handle flow control
         return false;
     }
 };
@@ -121,7 +118,6 @@ struct thread_args {
     int interval;
 };
 
-//===================All Semaphores and Mutexes===================
 MSQueue frame_cache;
 sem_t cache_emptied;
 sem_t cache_loaded;
@@ -133,13 +129,11 @@ double temp[FRAME_LEN];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t framebuffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-//===================All Thread Declarations===================
 void* camera(void* input) {
     struct thread_args *x = (struct thread_args *)input;
     int INTERVAL_SECONDS = (x->interval);
 
     while (true) {
-        // Use the same flow control as original
         sem_wait(&cache_emptied);
 
         double* frame = generate_frame_vector(FRAME_LEN);
@@ -166,7 +160,6 @@ void* transformer(void* args) {
             continue;
         }
 
-        // Keep the same compression logic to ensure identical MSE values
         pthread_mutex_lock(&framebuffer_mutex);
         memcpy(temp, original, FRAME_LEN * sizeof(double));
         compression(temp, FRAME_LEN);
@@ -190,9 +183,9 @@ void* estimator(void* args) {
             double mse = calculate_mse(original, compressed, FRAME_LEN);
             pthread_mutex_unlock(&framebuffer_mutex);
 
-            printf("mse = %f\n", mse);  // Same output format as your image
+            printf("mse = %f\n", mse);  
             
-            delete[] original; // Clean up the frame memory
+            delete[] original; 
             
             sem_post(&cache_emptied);
             sem_post(&framebuffer_clear);
@@ -203,7 +196,6 @@ void* estimator(void* args) {
     pthread_exit(NULL);
 }
 
-//===================Main Program===================
 int main(int argc, char *argv[]) {
     int i, rc, INTERVAL_SECONDS, THREADS;
     if (argc > 3) {
@@ -217,7 +209,7 @@ int main(int argc, char *argv[]) {
     else THREADS = DEFAULT_THREADS;
 
     sem_init(&cache_loaded, 0, 0);
-    sem_init(&cache_emptied, 0, CACHE_SIZE); // Start with cache empty slots
+    sem_init(&cache_emptied, 0, CACHE_SIZE); 
     sem_init(&transformer_loaded, 0, 0);
     sem_init(&mse_loaded, 0, 0);
     sem_init(&framebuffer_clear, 0, 1);
