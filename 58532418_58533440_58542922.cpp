@@ -253,33 +253,3 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-//===================CRITICAL: Same Frame Generation Logic===================
-// These functions must be identical to your original to produce same MSE values
-
-// Use the same random seed and algorithm as your original code
-unsigned long seed = 123456789; // Use same seed as your original
-
-double* generate_frame_vector(int length) {
-    static int frame_count = 0;
-    if (frame_count++ >= 10) { // Generate exactly 10 frames like your output
-        return NULL;
-    }
-    
-    double* frame = new double[length];
-    
-    // Use linear congruential generator to ensure same values as original
-    for (int i = 0; i < length; i++) {
-        seed = (1103515245 * seed + 12345) & 0x7FFFFFFF;
-        frame[i] = (double)seed / 2147483647.0; // Normalize to [0,1]
-    }
-    
-    return frame;
-}
-
-double* compression(double* frame, int length) {
-    // Use the exact same compression algorithm as your original
-    for (int i = 0; i < length; i++) {
-        frame[i] = frame[i] * 0.9; // Same compression factor
-    }
-    return frame;
-}
