@@ -14,7 +14,6 @@ using namespace std;
 #define DEFAULT_INTERVAL_SECONDS 2
 #define COMPRESS_TIME 3
 
-// Prototype function declarations
 double* generate_frame_vector(int length);
 double* compression(double* frame, int length);
 
