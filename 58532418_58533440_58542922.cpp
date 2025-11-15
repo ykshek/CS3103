@@ -17,7 +17,7 @@ using namespace std;
 // Prototype function declarations
 double* generate_frame_vector(int length);
 double* compression(double* frame, int length);
-//===================Michael-Scott Non-blocking Queue===================
+//Michael-Scott Non-blocking Queue algorithm
 struct Node {
     double* frame;
     atomic<Node*> next;
@@ -118,7 +118,6 @@ struct thread_args {
     int interval;
 };
 
-//===================All Semaphores and Mutexes===================
 MSQueue frame_cache;
 sem_t cache_emptied;
 sem_t cache_loaded;
@@ -130,7 +129,6 @@ double temp[FRAME_LEN];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t framebuffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-//===================All Thread Declarations===================
 void* camera(void* input) {
     struct thread_args *x = (struct thread_args *)input;
     int INTERVAL_SECONDS = (x->interval);
@@ -177,7 +175,7 @@ void* estimator(void* args) {
         double mse = calculate_mse(original, compressed, FRAME_LEN);
 
         printf("mse = %f\n", mse);
-        free(original); // Your C code uses malloc(), so use free()
+        free(original); 
         
         sem_post(&cache_emptied);
         sem_post(&framebuffer_clear);
@@ -185,7 +183,6 @@ void* estimator(void* args) {
     pthread_exit(NULL);
 }
 
-//===================Main Program===================
 int main(int argc, char *argv[]) {
     int i, rc, INTERVAL_SECONDS, THREADS;
     if (argc > 3) {
