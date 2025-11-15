@@ -14,10 +14,10 @@ using namespace std;
 #define DEFAULT_INTERVAL_SECONDS 2
 #define COMPRESS_TIME 3
 
+// Prototype function declarations
 double* generate_frame_vector(int length);
 double* compression(double* frame, int length);
-
-//Modify to Michael-Scott Non-blocking Queue
+//===================Michael-Scott Non-blocking Queue===================
 struct Node {
     double* frame;
     atomic<Node*> next;
@@ -101,6 +101,7 @@ struct MSQueue {
     }
     
     bool full() {
+        // Flow control handled by semaphores
         return false;
     }
 };
@@ -117,6 +118,7 @@ struct thread_args {
     int interval;
 };
 
+//===================All Semaphores and Mutexes===================
 MSQueue frame_cache;
 sem_t cache_emptied;
 sem_t cache_loaded;
@@ -128,16 +130,16 @@ double temp[FRAME_LEN];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t framebuffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+//===================All Thread Declarations===================
 void* camera(void* input) {
     struct thread_args *x = (struct thread_args *)input;
     int INTERVAL_SECONDS = (x->interval);
 
     while (true) {
-        sem_wait(&cache_emptied);
+        if (frame_cache.full()) sem_wait(&cache_emptied);
 
         double* frame = generate_frame_vector(FRAME_LEN);
         if (frame != NULL) {
-            // Lock-free enqueue
             frame_cache.enqueue(frame);
             sleep(INTERVAL_SECONDS);
         }
@@ -148,16 +150,12 @@ void* camera(void* input) {
 }
 
 void* transformer(void* args) {
-    while (true) {
+    while (!frame_cache.empty()) {
         sem_wait(&framebuffer_clear);
         sem_wait(&cache_loaded);
 
-        // Use lock-free peek instead of get_noDequeue with mutex
         double* original = frame_cache.get_noDequeue();
-        if (original == NULL) {
-            sem_post(&framebuffer_clear);
-            continue;
-        }
+        if (original == NULL) continue;
 
         pthread_mutex_lock(&framebuffer_mutex);
         memcpy(temp, original, FRAME_LEN * sizeof(double));
@@ -171,30 +169,23 @@ void* transformer(void* args) {
 }
 
 void* estimator(void* args) {
-    while (true) {
+    while (!frame_cache.empty()) {
         sem_wait(&transformer_loaded);
-        
-        // Lock-free dequeue
-        double* original = frame_cache.dequeue();
-        if (original != NULL) {
-            pthread_mutex_lock(&framebuffer_mutex);
-            double* compressed = temp;
-            double mse = calculate_mse(original, compressed, FRAME_LEN);
-            pthread_mutex_unlock(&framebuffer_mutex);
 
-            printf("mse = %f\n", mse);  
-            
-            delete[] original; 
-            
-            sem_post(&cache_emptied);
-            sem_post(&framebuffer_clear);
-        } else {
-            sem_post(&framebuffer_clear);
-        }
+        double* original = frame_cache.dequeue();
+        double* compressed = temp;
+        double mse = calculate_mse(original, compressed, FRAME_LEN);
+
+        printf("mse = %f\n", mse);
+        free(original); // Your C code uses malloc(), so use free()
+        
+        sem_post(&cache_emptied);
+        sem_post(&framebuffer_clear);
     }
     pthread_exit(NULL);
 }
 
+//===================Main Program===================
 int main(int argc, char *argv[]) {
     int i, rc, INTERVAL_SECONDS, THREADS;
     if (argc > 3) {
@@ -208,7 +199,7 @@ int main(int argc, char *argv[]) {
     else THREADS = DEFAULT_THREADS;
 
     sem_init(&cache_loaded, 0, 0);
-    sem_init(&cache_emptied, 0, CACHE_SIZE); 
+    sem_init(&cache_emptied, 0, 0);
     sem_init(&transformer_loaded, 0, 0);
     sem_init(&mse_loaded, 0, 0);
     sem_init(&framebuffer_clear, 0, 1);
@@ -243,4 +234,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
