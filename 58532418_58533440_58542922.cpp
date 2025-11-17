@@ -159,9 +159,11 @@ void* transformer(void* args) {
         memcpy(temp, original, FRAME_LEN * sizeof(double));
         compression(temp, FRAME_LEN);
         sleep(COMPRESS_TIME);
+        // ^^ take 3 seconds to compress the extracted frame
         pthread_mutex_unlock(&framebuffer_mutex);
 
         sem_post(&transformer_loaded);
+        // ^^ Signals estimator to compute the MSE
     }
     pthread_exit(NULL);
 }
@@ -183,7 +185,10 @@ void* estimator(void* args) {
     pthread_exit(NULL);
 }
 
+
+//===================Main Program===================
 int main(int argc, char *argv[]) {
+
     int i, rc, INTERVAL_SECONDS, THREADS;
     if (argc > 3) {
         printf("Invalid number of arguments.");
@@ -219,6 +224,7 @@ int main(int argc, char *argv[]) {
     pthread_join(camera_thread, NULL);
     pthread_join(transformer_thread, NULL);
     pthread_join(estimator_thread, NULL);
+
 
     sem_destroy(&cache_loaded);
     sem_destroy(&cache_emptied);
