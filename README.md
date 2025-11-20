@@ -9,6 +9,7 @@ This program simulates an image compression pipeline with three threads:
 
 ## Build Instructions
 Platform: Fedora 42 or Ubuntu 24.04.2 LTS
+
 Compiler: g++ 4.8+ with `std=c++11` flag
 
 1. Clone the project or unzip the included archive :
