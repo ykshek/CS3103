@@ -46,7 +46,7 @@ double temp[FRAME_LEN]; // "temporary frame recorder"
 pthread_mutex_t generator_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t framebuffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-//===================Thread Functions===================
+//===================Thread Functions=====================
 void* camera(void* input)
 {
     struct thread_args *x = (struct thread_args *)input;
